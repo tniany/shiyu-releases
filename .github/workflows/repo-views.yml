@@ -1,0 +1,56 @@
+name: Repo view stats
+
+on:
+  schedule:
+    # Daily at 03:17 UTC
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repo-view-stats
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch repository traffic
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/traffic/views" \
+            -o /tmp/views.json
+          python3 - <<'PY'
+          import json
+          data = json.load(open("/tmp/views.json", encoding="utf-8"))
+          print("14d views:", data.get("count"), "uniques:", data.get("uniques"))
+          PY
+
+      - name: Update stats files
+        run: |
+          set -euo pipefail
+          python3 scripts/update-repo-views.py /tmp/views.json
+
+      - name: Commit changes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stats
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(stats): refresh repository view badge [skip ci]"
+            git push
+          fi
