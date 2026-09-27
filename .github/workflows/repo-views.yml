@@ -22,7 +22,7 @@ jobs:
 
       - name: Fetch repository traffic
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
         run: |
           set -euo pipefail
           curl -fsSL \
